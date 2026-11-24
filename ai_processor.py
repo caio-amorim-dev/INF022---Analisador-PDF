@@ -4,7 +4,8 @@ from google import genai
 from google.genai import types
 
 from config import EXPERIMENTS
-from prompt import SYSTEM_INSTRUCTION, USER_PROMPT_TEMPLATE
+from prompt import SYSTEM_INSTRUCTION, build_user_prompt
+from schemas import AnaliseDocumento
 
 
 def _extract_json(text: str) -> dict:
@@ -37,12 +38,21 @@ def _extract_json(text: str) -> dict:
     return parsed
 
 
+def _parse_response(response) -> dict:
+    """Usa o objeto já validado pelo SDK; se não houver, valida o texto contra o schema."""
+    parsed = response.parsed
+    if not isinstance(parsed, AnaliseDocumento):
+        parsed = AnaliseDocumento.model_validate(_extract_json(response.text or ""))
+    return parsed.model_dump()
+
+
 def run_experiments(document_text: str, api_key: str) -> list[dict]:
     clean_key = (api_key or "").strip()
     if not clean_key:
         raise ValueError("Chave da API Gemini não informada.")
 
     client = genai.Client(api_key=clean_key)
+    contents = build_user_prompt(document_text)
     results = []
 
     for experiment in EXPERIMENTS:
@@ -60,16 +70,16 @@ def run_experiments(document_text: str, api_key: str) -> list[dict]:
         try:
             response = client.models.generate_content(
                 model=experiment["model"],
-                contents=USER_PROMPT_TEMPLATE.format(document_text=document_text),
+                contents=contents,
                 config=types.GenerateContentConfig(
                     system_instruction=SYSTEM_INSTRUCTION,
                     response_mime_type="application/json",
+                    response_schema=AnaliseDocumento,
                     **params,
                 ),
             )
-            raw_text = response.text or ""
-            result["data"] = _extract_json(raw_text)
-            result["raw_response"] = raw_text
+            result["raw_response"] = response.text or ""
+            result["data"] = _parse_response(response)
         except Exception as exc:
             result["error"] = f"{type(exc).__name__}: {exc}"
         result["duration_seconds"] = time.time() - started

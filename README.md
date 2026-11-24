@@ -1,11 +1,13 @@
-# Analisador de PDF com IA
+# Analisador de Documentos com IA
 
 Aplicação Streamlit que:
-1. Lê o texto de um PDF pesquisável, preservando a numeração das páginas.
-2. Envia o conteúdo à API Google Gemini.
-3. Executa três experimentos com combinações diferentes de modelo e parâmetros.
-4. Extrai atributos documentais, evidências, inconsistências e a seção **Resultado Esperado**.
-5. Permite baixar os resultados em JSON.
+1. Lê o papel de trabalho **Entendimento do Objeto** de uma auditoria: PDF pesquisável (com numeração das páginas), DOCX (com títulos e tabelas) ou texto colado.
+2. Envia o documento inteiro à API Google Gemini, indicando quais seções pesam mais.
+3. **Redige a seção Resultados Esperados**, com fundamentação e evidências literais para cada item.
+4. Faz um diagnóstico das seções do documento (presente, parcial, só referência ou ausente) e aponta inconsistências.
+5. Executa três experimentos com combinações diferentes de modelo e parâmetros e compara os resultados.
+6. Confere automaticamente se cada trecho citado como evidência existe mesmo no documento.
+7. Permite baixar os resultados em JSON.
 
 ## Requisitos
 
@@ -60,7 +62,29 @@ Com o ambiente virtual ativado, execute:
 streamlit run main.py
 ```
 
-Abra o endereço local mostrado pelo Streamlit (normalmente `http://localhost:8501`), confira/informe a chave Gemini na barra lateral e envie o PDF. Na tela de resultados, cada experimento exibe as abas **Resumo** (Resultado Esperado, possíveis inconsistências e observações) e **Extração estruturada (JSON)**.
+Abra o endereço local mostrado pelo Streamlit (normalmente `http://localhost:8501`), confira/informe a chave Gemini na barra lateral e envie o documento (PDF ou DOCX) ou cole o texto. Na tela de resultados, cada experimento exibe as abas **Resumo** (Resultados Esperados gerados com fundamentação, diagnóstico das seções, possíveis inconsistências e observações) e **Extração estruturada (JSON)**.
+
+## Estrutura
+
+| Arquivo | Função |
+|---|---|
+| `main.py` | Interface Streamlit |
+| `document_reader.py` | Leitura de PDF e DOCX |
+| `prompt.py` | Instruções e prioridades de leitura do documento |
+| `schemas.py` | Formato obrigatório da resposta (`response_schema` do Gemini) |
+| `ai_processor.py` | Chamadas ao Gemini e execução dos experimentos |
+| `evaluator.py` | Tabela comparativa e verificação das evidências |
+| `config.py` | Modelos e parâmetros dos experimentos |
+
+## Como o documento é lido
+
+O documento inteiro é enviado, e o prompt indica o peso de cada parte:
+- **Peso alto:** objeto, objetivo, contextualização, objetivos/indicadores/metas, descritivo do processo e riscos.
+- **Peso médio:** marco regulatório, controle interno e metodologia.
+- **Peso baixo (contexto):** participantes, aspecto organizacional, sistemas e contas contábeis.
+- **Ignorado:** sumário, assinaturas, datas e links.
+
+A resposta segue um formato fixo (`schemas.py`). Cada item do Resultado Esperado traz trechos copiados do documento como evidência, e o app confere se esses trechos existem de fato. A coluna **Evidências verificadas** da tabela mostra quantos foram encontrados; valores baixos indicam possível invenção do modelo.
 
 ## Os três experimentos
 
@@ -73,13 +97,13 @@ A disponibilidade dos modelos e dos parâmetros pode variar conforme a versão d
 
 ## Observações importantes
 
-- Este protótipo extrai texto com PyMuPDF; não possui OCR. PDFs que sejam apenas imagens precisam passar por OCR antes.
-- O texto integral do PDF é enviado à API. Considere confidencialidade, proteção de dados e políticas institucionais antes de usar documentos reais.
+- Só o texto é enviado à IA; imagens são ignoradas. Não há OCR: PDFs que sejam apenas imagens precisam passar por OCR antes, ou o texto pode ser colado manualmente.
+- O texto integral do documento é enviado à API. Considere confidencialidade, proteção de dados e políticas institucionais antes de usar documentos reais.
 - Não coloque sua chave API no código-fonte, no Git ou em arquivos compartilhados.
-- As respostas de IA devem ser revisadas por uma pessoa. As evidências e páginas servem para facilitar essa conferência.
-- PDFs muito extensos podem exceder limites de contexto ou de requisição. Nesse caso, será necessário implementar divisão em blocos (chunking) e consolidação.
-- A contagem de atributos é uma comparação simples de status, não uma avaliação automática de qualidade jurídica ou de auditoria.
+- O Resultado Esperado gerado é uma **proposta** e deve ser revisado pelo auditor. As evidências servem para facilitar essa conferência.
+- Documentos muito extensos podem exceder limites de contexto ou de requisição. Nesse caso, será necessário implementar divisão em blocos (chunking) e consolidação.
+- A tabela comparativa é uma comparação simples (seções, itens e evidências), não uma avaliação automática de qualidade jurídica ou de auditoria.
 
 ## Personalização
 
-Edite `prompt.py` para ajustar os atributos e critérios. Edite `config.py` para testar outros modelos e parâmetros.
+Edite `prompt.py` para ajustar as instruções e prioridades e `schemas.py` para mudar o formato da resposta. Edite `config.py` para testar outros modelos e parâmetros.

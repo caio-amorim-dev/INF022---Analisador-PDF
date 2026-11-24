@@ -3,9 +3,11 @@ import os
 from pathlib import Path
 import streamlit as st
 
-from pdf_reader import extract_pdf_pages
+from document_reader import SUPPORTED_EXTENSIONS, read_document
 from ai_processor import run_experiments
-from evaluator import compare_results
+from evaluator import check_evidences, compare_results
+
+STATUS_ICON = {"presente": "✅", "parcial": "🟡", "apenas referência": "↪️", "ausente": "❌"}
 
 
 def _load_default_api_key() -> str:
@@ -28,41 +30,12 @@ def _load_default_api_key() -> str:
     return ""
 
 
-def _extract_expected_result(data: dict) -> str:
-    """Extrai o texto de resultado_esperado mesmo se vier aninhado como objeto."""
-    expected = data.get("resultado_esperado")
-    if isinstance(expected, dict):
-        expected = expected.get("sintese") or expected.get("texto")
-    if not expected:
-        attrs = data.get("atributos")
-        if isinstance(attrs, dict) and isinstance(attrs.get("resultado_esperado"), dict):
-            expected = attrs["resultado_esperado"].get("sintese")
-    if isinstance(expected, str) and expected.strip():
-        return expected.strip()
-    return "Não identificado no documento."
-
-
-def _normalize_text_list(value) -> list[str]:
-    """Converte listas/strings/objetos em uma lista limpa de textos para exibição."""
-    if not value:
-        return []
-    if isinstance(value, str):
-        return [value.strip()] if value.strip() else []
-    if isinstance(value, list):
-        items = []
-        for item in value:
-            if isinstance(item, str):
-                if item.strip():
-                    items.append(item.strip())
-            elif item is not None:
-                items.append(json.dumps(item, ensure_ascii=False))
-        return items
-    return [json.dumps(value, ensure_ascii=False)]
-
-
-st.set_page_config(page_title="Analisador de PDF com IA", page_icon="📄", layout="wide")
-st.title("Analisador de PDF com IA")
-st.write("Extrai atributos de um documento, gera a seção **Resultado Esperado** e compara três configurações de IA.")
+st.set_page_config(page_title="Analisador de Documentos com IA", page_icon="📄", layout="wide")
+st.title("Analisador de Documentos com IA")
+st.write(
+    "Lê o **Entendimento do Objeto** de uma auditoria (PDF, DOCX ou texto colado), redige a seção "
+    "**Resultados Esperados** fundamentada no documento e compara três configurações de IA."
+)
 
 with st.sidebar:
     st.header("Acesso à API")
@@ -74,40 +47,63 @@ with st.sidebar:
     )
     st.caption("Crie uma chave no Google AI Studio. O projeto usa a API Gemini.")
 
-uploaded = st.file_uploader("Envie o PDF para análise", type=["pdf"])
+source = st.radio("Origem do documento", ["Enviar arquivo", "Colar texto"], horizontal=True)
+
 full_text = ""
-
-if uploaded:
-    pdf_bytes = uploaded.getvalue()
-    try:
-        pages = extract_pdf_pages(pdf_bytes)
-        full_text = "\n\n".join(
-            f"[PÁGINA {p['page']}]\n{p['text']}" for p in pages if p["text"].strip()
-        )
-        st.success(f"PDF lido: {len(pages)} página(s), {len(full_text):,} caracteres extraídos.")
-        with st.expander("Prévia do texto extraído"):
-            st.text(full_text[:12000] or "Nenhum texto foi extraído. O PDF pode ser digitalizado como imagem.")
+source_name = None
+if source == "Enviar arquivo":
+    uploaded = st.file_uploader("Envie o documento para análise (PDF ou DOCX)", type=list(SUPPORTED_EXTENSIONS))
+    if uploaded:
+        try:
+            full_text = read_document(uploaded.getvalue(), uploaded.name)
+        except Exception as exc:
+            st.error(f"Erro ao ler o documento: {exc}")
+            st.stop()
         if not full_text.strip():
-            st.warning("Não foi possível extrair texto. Este protótipo não faz OCR; use um PDF pesquisável.")
-    except Exception as exc:
-        st.error(f"Erro ao ler o PDF: {exc}")
-        st.stop()
+            st.warning(
+                "Não foi possível extrair texto. Este protótipo não faz OCR; "
+                "use um PDF pesquisável, um DOCX ou cole o texto."
+            )
+            st.stop()
+        source_name = uploaded.name
+else:
+    pasted = st.text_area(
+        "Cole o texto do Entendimento do Objeto",
+        height=320,
+        placeholder="OBJETO DA AUDITORIA: ...\nOBJETIVO: ...\n\nContextualização\n...",
+        help="Útil para documentos em outros formatos ou para analisar apenas parte de um documento.",
+    )
+    if pasted.strip():
+        full_text = pasted.strip()
+        source_name = "texto colado"
 
-    if st.button("Executar os 3 experimentos", type="primary", disabled=not api_key.strip() or not full_text.strip()):
+if source_name:
+    st.success(f"Documento pronto: {len(full_text):,} caracteres serão enviados.")
+    with st.expander("Prévia do texto enviado à IA"):
+        st.text(full_text[:15000])
+
+    if st.button("Executar os 3 experimentos", type="primary", disabled=not api_key.strip()):
         with st.spinner("Enviando o conteúdo para os três experimentos. Isso pode levar alguns minutos..."):
             try:
                 results = run_experiments(full_text, api_key)
-                st.session_state["results"] = results
-                st.session_state["source_name"] = uploaded.name
             except Exception as exc:
                 st.error(f"Falha na análise: {exc}")
                 st.stop()
+            for result in results:
+                if result.get("data"):
+                    result["evidence_check"] = check_evidences(result["data"], full_text)
+            st.session_state["results"] = results
+            st.session_state["source_name"] = source_name
 
 if "results" in st.session_state:
     results = st.session_state["results"]
     st.divider()
     st.subheader("Comparação dos experimentos")
     st.dataframe(compare_results(results), width="stretch", hide_index=True)
+    st.caption(
+        "**Evidências verificadas**: trechos citados pela IA que existem literalmente no documento "
+        "(valores baixos indicam possível invenção)."
+    )
 
     for result in results:
         with st.expander(f"{result['experiment']} — {result.get('model', '')}", expanded=True):
@@ -115,30 +111,46 @@ if "results" in st.session_state:
                 st.error(result["error"])
                 continue
 
-            data = result.get("data")
-            if not isinstance(data, dict):
-                st.warning("O modelo retornou um formato inesperado de dados.")
-                st.json(data)
-                st.caption(f"Tempo: {result.get('duration_seconds', 0):.1f}s")
-                continue
+            data = result["data"]
+            generated = data["resultado_esperado_gerado"]
 
             tab_summary, tab_json = st.tabs(["Resumo", "Extração estruturada (JSON)"])
             with tab_summary:
-                st.markdown("**Resultado Esperado**")
-                st.write(_extract_expected_result(data))
+                col_left, col_right = st.columns([3, 2])
+                with col_left:
+                    st.markdown("#### Resultados Esperados (gerado)")
+                    st.write(generated["introducao"])
+                    for item in generated["itens"]:
+                        st.markdown(f"- **{item['texto']}**")
+                        with st.popover("Fundamentação"):
+                            st.write(item["fundamentacao"])
+                            for ev in item["evidencias"]:
+                                mark = "✅" if ev.get("verificada") else "⚠️ não encontrado no documento"
+                                st.markdown(f"> {ev['trecho']}  \n_{ev['local']}_ — {mark}")
 
-                st.markdown("**Possíveis inconsistências**")
-                issues = _normalize_text_list(data.get("inconsistencias"))
-                if issues:
-                    for issue in issues:
+                    if data.get("resultado_esperado_original"):
+                        st.markdown("#### Seção original encontrada no documento")
+                        st.text(data["resultado_esperado_original"])
+
+                with col_right:
+                    st.markdown("#### Diagnóstico do documento")
+                    for sec in data["diagnostico_secoes"]:
+                        st.markdown(
+                            f"{STATUS_ICON.get(sec['status'], '•')} **{sec['secao']}** — {sec['status']}  \n"
+                            f"<small>{sec['observacao']}</small>",
+                            unsafe_allow_html=True,
+                        )
+
+                st.markdown("#### Possíveis inconsistências")
+                if data["inconsistencias"]:
+                    for issue in data["inconsistencias"]:
                         st.warning(issue)
                 else:
                     st.write("Nenhuma inconsistência explicitamente apontada pelo modelo.")
 
-                notes = _normalize_text_list(data.get("observacoes"))
-                if notes:
-                    st.markdown("**Observações**")
-                    for note in notes:
+                if data["observacoes"]:
+                    st.markdown("#### Observações")
+                    for note in data["observacoes"]:
                         st.info(note)
 
             with tab_json:
@@ -157,7 +169,7 @@ if "results" in st.session_state:
         mime="application/json",
     )
 
-elif not uploaded:
-    st.info("Envie um PDF para começar.")
+elif not source_name:
+    st.info("Envie um documento ou cole o texto para começar.")
 elif not api_key.strip():
     st.info("Informe sua chave API na barra lateral para habilitar a análise.")
