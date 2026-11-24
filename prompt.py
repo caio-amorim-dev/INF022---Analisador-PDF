@@ -27,15 +27,22 @@ Analise o documento abaixo e extraia os seguintes atributos:
 12. metodologia
 13. resultado_esperado
 
-Para cada atributo, forneça:
-- status: "identificado", "parcial" ou "não identificado"
-- sintese: resumo fiel ao documento
-- evidencias: lista de objetos com "pagina" (número ou null) e "trecho" (citação curta do documento)
+Retorne um objeto JSON exatamente com a seguinte estrutura:
+{{
+  "atributos": {{
+    "objeto_da_auditoria": {{
+      "status": "identificado | parcial | não identificado",
+      "sintese": "resumo fiel ao documento",
+      "evidencias": [{{"pagina": 1, "trecho": "citação curta do documento"}}]
+    }}
+  }},
+  "resultado_esperado": "texto consolidado, baseado somente na seção correspondente do documento",
+  "inconsistencias": ["aparentes contradições, desalinhamentos ou lacunas relevantes"],
+  "observacoes": ["limitações da extração ou pontos que exigem validação humana"]
+}}
 
-Além disso, forneça:
-- resultado_esperado: texto consolidado, baseado somente na seção correspondente do documento
-- inconsistencias: lista de aparentes contradições, desalinhamentos ou lacunas relevantes
-- observacoes: limitações da extração ou pontos que exigem validação humana
+Inclua dentro de "atributos" todos os 13 atributos listados acima com os nomes exatos.
+Para "pagina" nas evidências, use número inteiro ou null.
 
 Documento:
 {document_text}

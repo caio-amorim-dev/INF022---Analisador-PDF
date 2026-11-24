@@ -9,8 +9,8 @@ Aplicação Streamlit que:
 
 ## Requisitos
 
-- Python 3.10 ou superior.
-- Chave de API do Google Gemini.
+- Python 3.9 ou superior (recomendado 3.10+).
+- Chave de API do Google Gemini (Free Tier ou pago).
 - Conexão com a internet para chamar a API.
 
 ## Instalação
@@ -46,19 +46,28 @@ pip install -r requirements.txt
 
 ## Executar
 
+Opcionalmente, crie um arquivo `.env` a partir de `.env.example` para carregar a chave automaticamente:
+
+```bash
+cp .env.example .env
+```
+
+Preencha `GEMINI_API_KEY` no `.env` (ou informe a chave diretamente na barra lateral do app).
+
+Com o ambiente virtual ativado, execute:
+
 ```bash
 streamlit run main.py
 ```
 
-Abra o endereço local mostrado pelo Streamlit (normalmente `http://localhost:8501`).
-Informe a chave Gemini na barra lateral e envie o PDF.
+Abra o endereço local mostrado pelo Streamlit (normalmente `http://localhost:8501`), confira/informe a chave Gemini na barra lateral e envie o PDF. Na tela de resultados, cada experimento exibe as abas **Resumo** (Resultado Esperado, possíveis inconsistências e observações) e **Extração estruturada (JSON)**.
 
 ## Os três experimentos
 
-As configurações ficam em `config.py`:
-- Gemini 2.5 Flash — temperature 0.1, top-p 0.8, top-k 20.
-- Gemini 2.5 Flash — temperature 0.5, top-p 0.9, top-k 40.
-- Gemini 2.5 Pro — temperature 0.2, top-p 0.8, top-k 20.
+As configurações ficam em `config.py` (modelos compatíveis com o Free Tier da API Gemini, cada um com cota independente por modelo):
+- `gemini-3.1-flash-lite` — temperature 0.1, top-p 0.8.
+- `gemini-3.6-flash` — temperature 0.5, top-p 0.9.
+- `gemini-3.5-flash-lite` — temperature 0.2, top-p 0.8.
 
 A disponibilidade dos modelos e dos parâmetros pode variar conforme a versão da API e a conta. Se uma configuração falhar, o erro aparecerá apenas naquele experimento. Verifique os modelos e parâmetros disponíveis na documentação atual do Gemini.
 

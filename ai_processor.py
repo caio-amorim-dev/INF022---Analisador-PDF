@@ -9,28 +9,53 @@ from prompt import SYSTEM_INSTRUCTION, USER_PROMPT_TEMPLATE
 
 def _extract_json(text: str) -> dict:
     """Converte a resposta em JSON, tolerando cercas Markdown ocasionais."""
-    cleaned = text.strip()
+    cleaned = (text or "").strip()
+    if not cleaned:
+        raise ValueError("O modelo retornou uma resposta vazia.")
+
     if cleaned.startswith("```"):
         cleaned = cleaned.split("\n", 1)[-1]
         if cleaned.endswith("```"):
             cleaned = cleaned[:-3]
-    return json.loads(cleaned)
+        cleaned = cleaned.strip()
+
+    try:
+        parsed = json.loads(cleaned)
+    except json.JSONDecodeError:
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
+        if start == -1 or end == -1 or end <= start:
+            raise
+        parsed = json.loads(cleaned[start : end + 1])
+
+    if isinstance(parsed, list) and len(parsed) == 1 and isinstance(parsed[0], dict):
+        parsed = parsed[0]
+
+    if not isinstance(parsed, dict):
+        raise ValueError(f"Esperado objeto JSON (dict), mas o modelo retornou {type(parsed).__name__}.")
+
+    return parsed
 
 
 def run_experiments(document_text: str, api_key: str) -> list[dict]:
-    client = genai.Client(api_key=api_key)
+    clean_key = (api_key or "").strip()
+    if not clean_key:
+        raise ValueError("Chave da API Gemini não informada.")
+
+    client = genai.Client(api_key=clean_key)
     results = []
 
     for experiment in EXPERIMENTS:
         started = time.time()
+        params = {
+            key: experiment[key]
+            for key in ("temperature", "top_p", "top_k")
+            if experiment.get(key) is not None
+        }
         result = {
             "experiment": experiment["name"],
             "model": experiment["model"],
-            "parameters": {
-                "temperature": experiment["temperature"],
-                "top_p": experiment["top_p"],
-                "top_k": experiment["top_k"],
-            },
+            "parameters": params,
         }
         try:
             response = client.models.generate_content(
@@ -38,10 +63,8 @@ def run_experiments(document_text: str, api_key: str) -> list[dict]:
                 contents=USER_PROMPT_TEMPLATE.format(document_text=document_text),
                 config=types.GenerateContentConfig(
                     system_instruction=SYSTEM_INSTRUCTION,
-                    temperature=experiment["temperature"],
-                    top_p=experiment["top_p"],
-                    top_k=experiment["top_k"],
                     response_mime_type="application/json",
+                    **params,
                 ),
             )
             raw_text = response.text or ""
