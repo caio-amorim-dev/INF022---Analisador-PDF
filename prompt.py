@@ -23,6 +23,20 @@ Regras de fundamentação:
   em observacoes, em vez de preencher com generalidades.
 - Registre contradições ou desalinhamentos entre seções em inconsistencias,
   sem tentar corrigi-los.
+
+Comparação com a seção existente (faça SOMENTE depois de redigir a sua versão):
+- Procure no documento uma seção de Resultados Esperados (ou equivalente, como
+  "Resultados esperados", "Benefícios esperados"). Se não houver, deixe
+  resultado_esperado_original e comparacao como null.
+- Se houver, compare item a item a sua versão com a do documento:
+  - ponha na mesma linha os itens semelhantes das duas versões e escolha o
+    melhor ("gerado" ou "documento");
+  - itens que só existem em uma versão ficam sozinhos na linha: indique o lado
+    se vale a pena incluí-lo, ou "descartar" se não acrescenta;
+  - critérios: especificidade ao objeto auditado, aderência ao objetivo,
+    fundamentação no documento e clareza.
+- Diga qual versão é melhor no geral e monte a versao_consolidada com os itens
+  escolhidos das duas. Seja imparcial: não favoreça a sua versão por tê-la escrito.
 """.strip()
 
 _PRIORIDADES = """

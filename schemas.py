@@ -50,6 +50,36 @@ class ResultadoGerado(BaseModel):
     itens: list[ItemResultado]
 
 
+EscolhaComparacao = Literal["gerado", "documento", "descartar"]
+
+
+class LinhaComparacao(BaseModel):
+    item_gerado: Optional[str] = Field(
+        description="Item da versão gerada; null se o ponto só existe na versão do documento."
+    )
+    item_documento: Optional[str] = Field(
+        description="Item da seção original do documento; null se o ponto só existe na versão gerada."
+    )
+    escolha: EscolhaComparacao = Field(
+        description=(
+            'Pontos semelhantes (os dois preenchidos): "gerado" ou "documento", conforme o melhor. '
+            'Ponto só de um lado: o nome desse lado se vale a pena incluir, ou "descartar".'
+        )
+    )
+    justificativa: str = Field(description="Uma frase explicando a escolha.")
+
+
+class ComparacaoResultados(BaseModel):
+    linhas: list[LinhaComparacao] = Field(
+        description="Uma linha por ponto. Itens semelhantes das duas versões ficam na mesma linha."
+    )
+    melhor_no_geral: Literal["gerado", "documento", "equivalentes"]
+    justificativa_geral: str
+    versao_consolidada: list[str] = Field(
+        description="Lista final com os itens escolhidos (de qualquer das duas versões), na ordem recomendada."
+    )
+
+
 class AnaliseDocumento(BaseModel):
     objeto_da_auditoria: str
     objetivo: str
@@ -58,5 +88,8 @@ class AnaliseDocumento(BaseModel):
         description="Texto da seção de Resultados Esperados já existente no documento, copiado literalmente; null se não existir."
     )
     resultado_esperado_gerado: ResultadoGerado
+    comparacao: Optional[ComparacaoResultados] = Field(
+        description="Comparação entre a versão gerada e a seção original; null se o documento não tiver a seção."
+    )
     inconsistencias: list[str] = Field(description="Contradições, desalinhamentos ou lacunas relevantes encontradas no documento.")
     observacoes: list[str] = Field(description="Limitações da análise e pontos que exigem validação humana.")

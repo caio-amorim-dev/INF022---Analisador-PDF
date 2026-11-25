@@ -58,6 +58,9 @@ def compare_results(results: list[dict]) -> pd.DataFrame:
             "Ausentes": status.count("ausente"),
             "Itens gerados": len(items),
             "Evidências verificadas": f"{ev['verificadas']}/{ev['total']}" if ev else "—",
+            "Melhor no geral": (data.get("comparacao") or {}).get("melhor_no_geral", "sem seção original")
+            if data
+            else "—",
             "Tempo (s)": round(result.get("duration_seconds", 0), 1),
             "Status": "Erro" if result.get("error") else "Concluído",
         })

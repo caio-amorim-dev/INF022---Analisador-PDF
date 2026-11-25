@@ -30,6 +30,52 @@ def _load_default_api_key() -> str:
     return ""
 
 
+_CHOICE_LABEL = {"gerado": "✅ Gerado", "documento": "✅ Documento", "descartar": "❌ Descartar"}
+_VERDICT_LABEL = {
+    "gerado": "a versão **gerada pela IA**",
+    "documento": "a versão **do documento**",
+    "equivalentes": "as duas versões são **equivalentes**",
+}
+
+
+def _show_comparison(comparison: dict, original: str | None) -> None:
+    """Tabela lado a lado: gerado × documento, com a escolha de cada ponto e o veredito geral."""
+    st.markdown("#### Comparação: gerado × documento")
+    rows = [
+        {
+            "Gerado pela IA": line.get("item_gerado") or "—",
+            "Documento": line.get("item_documento") or "—",
+            "Escolha": _CHOICE_LABEL.get(line.get("escolha"), line.get("escolha")),
+            "Justificativa": line.get("justificativa", ""),
+        }
+        for line in comparison.get("linhas", [])
+    ]
+    st.dataframe(
+        rows,
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "Gerado pela IA": st.column_config.TextColumn(width="large"),
+            "Documento": st.column_config.TextColumn(width="large"),
+            "Justificativa": st.column_config.TextColumn(width="large"),
+        },
+    )
+
+    verdict = comparison.get("melhor_no_geral")
+    st.success(f"**No geral:** {_VERDICT_LABEL.get(verdict, verdict)}. {comparison.get('justificativa_geral', '')}")
+
+    if comparison.get("versao_consolidada"):
+        st.markdown("**Versão consolidada sugerida** (melhores pontos das duas):")
+        st.markdown("\n".join(f"- {item}" for item in comparison["versao_consolidada"]))
+
+    if original:
+        with st.expander("Texto original da seção no documento"):
+            st.text(original)
+    st.caption(
+        "A comparação é feita pelo mesmo modelo que gerou a versão da IA, que pode tender a favorecer o próprio texto."
+    )
+
+
 st.set_page_config(page_title="Analisador de Documentos com IA", page_icon="📄", layout="wide")
 st.title("Analisador de Documentos com IA")
 st.write(
@@ -128,10 +174,6 @@ if "results" in st.session_state:
                                 mark = "✅" if ev.get("verificada") else "⚠️ não encontrado no documento"
                                 st.markdown(f"> {ev['trecho']}  \n_{ev['local']}_ — {mark}")
 
-                    if data.get("resultado_esperado_original"):
-                        st.markdown("#### Seção original encontrada no documento")
-                        st.text(data["resultado_esperado_original"])
-
                 with col_right:
                     st.markdown("#### Diagnóstico do documento")
                     for sec in data["diagnostico_secoes"]:
@@ -140,6 +182,12 @@ if "results" in st.session_state:
                             f"<small>{sec['observacao']}</small>",
                             unsafe_allow_html=True,
                         )
+
+                comparison = data.get("comparacao")
+                if comparison:
+                    _show_comparison(comparison, data.get("resultado_esperado_original"))
+                else:
+                    st.caption("O documento não tem seção de Resultados Esperados; não há o que comparar.")
 
                 st.markdown("#### Possíveis inconsistências")
                 if data["inconsistencias"]:

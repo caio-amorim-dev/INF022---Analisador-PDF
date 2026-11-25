@@ -7,7 +7,8 @@ Aplicação Streamlit que:
 4. Faz um diagnóstico das seções do documento (presente, parcial, só referência ou ausente) e aponta inconsistências.
 5. Executa três experimentos com combinações diferentes de modelo e parâmetros e compara os resultados.
 6. Confere automaticamente se cada trecho citado como evidência existe mesmo no documento.
-7. Permite baixar os resultados em JSON.
+7. Se o documento já tiver a seção Resultados Esperados, compara a versão gerada com a original em uma tabela lado a lado, indica o melhor de cada ponto, diz qual versão é melhor no geral e sugere uma versão consolidada.
+8. Permite baixar os resultados em JSON.
 
 ## Requisitos
 
@@ -85,6 +86,19 @@ O documento inteiro é enviado, e o prompt indica o peso de cada parte:
 - **Ignorado:** sumário, assinaturas, datas e links.
 
 A resposta segue um formato fixo (`schemas.py`). Cada item do Resultado Esperado traz trechos copiados do documento como evidência, e o app confere se esses trechos existem de fato. A coluna **Evidências verificadas** da tabela mostra quantos foram encontrados; valores baixos indicam possível invenção do modelo.
+
+## Comparação com a seção existente
+
+Depois de redigir a sua versão, o modelo procura no documento uma seção de Resultados Esperados. Se encontrar, monta uma tabela:
+
+| Gerado pela IA | Documento | Escolha | Justificativa |
+|---|---|---|---|
+| item semelhante | item semelhante | ✅ o melhor dos dois | … |
+| item só da IA | — | ✅ Gerado ou ❌ Descartar | … |
+| — | item só do documento | ✅ Documento ou ❌ Descartar | … |
+
+Em seguida indica qual versão é **melhor no geral** e sugere uma **versão consolidada** com os pontos escolhidos.
+Limitação: a comparação é feita pelo mesmo modelo que gerou o texto, que pode tender a favorecer a própria versão.
 
 ## Os três experimentos
 
